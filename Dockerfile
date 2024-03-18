@@ -24,7 +24,7 @@ CMD ceedling release
 ##########################################################
 ### Stage 3 - Production image (serve our application) ###
 ##########################################################
-FROM druxx/ubuntu-ceedling:22.04-v0.32.0-d76db35  as release
+FROM scratch as release
 
 # Use COPY to pull artifact from previous build layer
 COPY --from=base /project/build/artifacts/release/MyApp.out /bin/MyApp.out
