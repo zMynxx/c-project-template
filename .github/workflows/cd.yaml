@@ -1,0 +1,94 @@
+#/.github/workflows/cd.yaml
+---
+name: CD
+
+on:
+  # Publish on every approved PR
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: write
+  packages: write
+
+jobs:
+  check:
+    name: check pr status
+    runs-on: ubuntu-22.04
+    steps:
+      - name: check if PR is merged
+        uses: zmynx/github-actions/.github/actions/git/check-merge@feature/gha
+
+  cd:
+    name: continuous-delivery
+    needs: [check]
+    runs-on: ubuntu-22.04
+    outputs:
+      new_tag: ${{ steps.semver.outputs.new_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build locally
+        uses: docker/build-push-action@v5.1.0
+        with:
+          context: .
+          file: Dockerfile.ubuntu
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: release:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Generate Release using Docker
+        run: |
+          docker run \
+          --interactive \
+          --rm \
+          --volume ./project-demo:/project \
+          release:${{ github.sha }} \
+          ceedling release
+
+      - name: Semantic Versioning
+        id: semverv2
+        uses: zmynx/github-actions/.github/actions/git/semver-v2@feature/gha
+        with:
+          fallback: "0.1.0"
+          prefix: "v"
+
+      - name: Downcase PR body
+        id: downcase
+        shell: bash
+        env:
+          PR_BODY: ${{ github.pull_request.body }}
+        run: echo "pr_body_lowercase=${PR_BODY,,}" >> $GITHUB_OUTPUT
+
+      - name: Parse the body for any '#major' or '#minor' keywords
+        id: new_tag
+        shell: bash
+        env:
+          NEW_TAG: ${{ contains(steps.downcase.outputs.pr_body_lowercase, '#major') && steps.semverv2.outputs.major || contains(steps.downcase.outputs.pr_body_lowercase, '#minor') && steps.semverv2.outputs.minor || steps.semverv2.outputs.patch }}
+        run: echo "new_tag=${NEW_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v0.1.15
+        with:
+          tag_name: "${{ format('{0}{1}', 'v', steps.new_tag.outputs.new_tag) }}"
+          files: |
+            project-demo/build/artifacts/release/MyApp.out
+            ceedling-0.32.0-d76db35.gem
+            LICENSE

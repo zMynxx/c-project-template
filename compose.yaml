@@ -1,0 +1,40 @@
+# Comments are provided throughout this file to help you get started.
+# If you need more help, visit the Docker compose reference guide at
+# https://docs.docker.com/go/compose-spec-reference/
+
+# Here the instructions define your application as a service called app.
+# This service is built from the Dockerfile in the current directory.
+# You can add other services your application may depend on here, such as a
+# database or a cache. For examples, see the Awesome Compose repository:
+# https://github.com/docker/awesome-compose
+services:
+  app:
+    container_name: c-dev
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile.ubuntu
+      tags:
+        - druxx/ubuntu-ceedling:22.04-v0.32.0-d76db35
+        - druxx/ubuntu-ceedling:latest
+      args:
+        - RBENV_VERSION=3.3.0
+      labels:
+        - maintainer.description='C Development environment with ceedling, cmock unity, and doxygen'
+        - ceedling.version=ceedling-0.32.0-d76db35
+        - unity.version=2.5.4
+        - cmock.version=2.5.4
+        - cexception.version=1.3.3
+        - doxygen.version=v1.9.1
+    tty: true
+    stdin_open: true
+    command: ["/bin/bash"]
+    volumes:
+      - ./project-demo:/project
+    restart: unless-stopped
+
+    # If your application exposes a port, uncomment the following lines and change
+    # the port numbers as needed. The first number is the host port and the second
+    # is the port inside the container.
+    # ports:
+    #   - 8080:8080
